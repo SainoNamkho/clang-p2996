@@ -2,9 +2,9 @@ name: Build P2996 clangd + libcxx headers
 
 on:
   push:
-    branches: [ "p2996", "master", "main" ]
+    branches: [ "build" ]
   pull_request:
-    branches: [ "p2996", "master", "main" ]
+    branches: [ "build" ]
   workflow_dispatch:
 
 jobs:
