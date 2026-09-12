@@ -69,7 +69,7 @@ jobs:
       # 2. 编译 clangd、内置头文件以及 P2996 libc++ 头文件
       - name: Build clangd, Resource Headers & libc++
         run: |
-          ninja -C build clangd clang-resource-headers cxx_headers
+          ninja -C build clangd clang-resource-headers cxx-headers
           strip build/bin/clangd
 
       # 3. 打包完整的便携环境 (包含 clangd + resource headers + libc++ headers)
