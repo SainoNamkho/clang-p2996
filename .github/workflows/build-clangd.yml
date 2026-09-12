@@ -43,6 +43,13 @@ jobs:
           ccache --max-size=2G
           ccache -z
 
+      - name: Patch clangd Tweaks
+        run: |
+          # 清空 SwapIfBranches.cpp 内容，避免编译报错，不影响 clangd 核心功能
+          echo "// Disabled for P2996 compatibility" > clang-tools-extra/clangd/refactor/tweaks/SwapIfBranches.cpp
+          # 从 CMakeLists 中移除该源文件（双重保险）
+          sed -i '/SwapIfBranches.cpp/d' clang-tools-extra/clangd/refactor/tweaks/CMakeLists.txt
+
       # 1. 开启 libcxx runtimes 支持
       - name: Configure CMake
         run: |
