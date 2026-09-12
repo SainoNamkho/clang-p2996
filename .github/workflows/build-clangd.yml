@@ -1,0 +1,93 @@
+name: Build P2996 clangd + libcxx headers
+
+on:
+  push:
+    branches: [ "p2996", "master", "main" ]
+  pull_request:
+    branches: [ "p2996", "master", "main" ]
+  workflow_dispatch:
+
+jobs:
+  build-clangd:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout P2996 Branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Free Disk Space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          df -h
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build ccache lld clang
+
+      - name: Setup ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ${{ runner.os }}-p2996-clangd-libcxx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-p2996-clangd-libcxx-
+
+      - name: Init ccache
+        run: |
+          ccache --max-size=2G
+          ccache -z
+
+      # 1. 开启 libcxx runtimes 支持
+      - name: Configure CMake
+        run: |
+          cmake -B build -S llvm \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DLLVM_USE_LINKER=lld \
+            -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" \
+            -DLLVM_ENABLE_RUNTIMES="libcxx;libcxxabi" \
+            -DLLVM_TARGETS_TO_BUILD="X86" \
+            -DLLVM_ENABLE_TERMINFO=OFF \
+            -DLLVM_ENABLE_ZSTD=OFF \
+            -DLLVM_ENABLE_ZLIB=OFF \
+            -DLLVM_ENABLE_ASSERTIONS=OFF \
+            -DLLVM_INCLUDE_TESTS=OFF \
+            -DLLVM_INCLUDE_EXAMPLES=OFF \
+            -DLLVM_INCLUDE_BENCHMARKS=OFF \
+            -DLLVM_INCLUDE_DOCS=OFF
+
+      # 2. 编译 clangd、内置头文件以及 P2996 libc++ 头文件
+      - name: Build clangd, Resource Headers & libc++
+        run: |
+          ninja -C build clangd clang-resource-headers cxx_headers
+          strip build/bin/clangd
+
+      # 3. 打包完整的便携环境 (包含 clangd + resource headers + libc++ headers)
+      - name: Package Portable Bundle
+        run: |
+          mkdir -p package/bin package/lib package/include
+          cp build/bin/clangd package/bin/
+          cp -r build/lib/clang package/lib/
+          cp -r build/include/c++ package/include/
+          
+          # 验证 <meta> 是否成功包含在包中
+          find package/include -name "meta" || true
+          
+          tar -czvf clangd-p2996-full-linux-x86_64.tar.gz -C package bin lib include
+
+      - name: Upload Portable Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: clangd-p2996-bundle
+          path: clangd-p2996-full-linux-x86_64.tar.gz
+          retention-days: 14
